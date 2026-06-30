@@ -1,37 +1,51 @@
-import { useEffect, useState } from 'react';
-import { getAllItems } from './api/mrpApi';
+import { useState } from 'react';
+import ProductSelector from './components/ProductSelector';
+import BomTreeView from './components/BomTreeView';
+import { explodeBom, getItemById } from './api/mrpApi';
 
 function App() {
-  const [items, setItems] = useState([]);
-  const [error, setError] = useState(null);
+  const [results, setResults] = useState([]);
+  const [productName, setProductName] = useState('');
+  const [targetQuantity, setTargetQuantity] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    getAllItems()
-      .then((response) => {
-        console.log('Items fetched:', response.data);
-        setItems(response.data);
-      })
-      .catch((err) => {
-        console.error('Error fetching items:', err);
-        setError('Failed to connect to backend. Is Spring Boot running?');
-      });
-  }, []);
+  const handleExplode = async (productId, quantity) => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const productResponse = await getItemById(productId);
+      setProductName(productResponse.data.name);
+
+      const explosionResponse = await explodeBom(productId, quantity);
+      setResults(explosionResponse.data);
+      setTargetQuantity(quantity);
+    } catch (err) {
+      setError(
+        err.response?.data?.message || 'Something went wrong. Please try again.'
+      );
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h1>MRP Engine — Connection Test</h1>
+    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px' }}>
+      <h1>MRP Engine Dashboard</h1>
+
+      <ProductSelector onExplode={handleExplode} />
+
+      {loading && <p>Calculating BOM explosion...</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}
-      {!error && (
-        <>
-          <p>Successfully connected! Found {items.length} items.</p>
-          <ul>
-            {items.map((item) => (
-              <li key={item.id}>
-                {item.name} — {item.type}
-              </li>
-            ))}
-          </ul>
-        </>
+
+      {!loading && results.length > 0 && (
+        <BomTreeView
+          productName={productName}
+          targetQuantity={targetQuantity}
+          results={results}
+        />
       )}
     </div>
   );
